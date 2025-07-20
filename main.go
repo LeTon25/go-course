@@ -10,13 +10,28 @@ import (
 func main() {
 	var taxRates []float64
 	taxRates = []float64{0.5, 7, 15.2, 20.12}
+	doneChans := make([]chan bool, len(taxRates))
+	errChans := make([]chan error, len(taxRates))
 
-	for _, taxRate := range taxRates {
+	for index, taxRate := range taxRates {
+		doneChans[index] = make(chan bool)
+		errChans[index] = make(chan error)
 		fm := filemanager.NewFileManager("prices.txt", fmt.Sprintf("tax_included_prices_%.0f.json", taxRate))
-		err := prices.NewTaxIncludedPriceJob(fm, taxRate).Calculate()
-		if err != nil {
-			fmt.Printf("Error calculating tax included prices for tax rate %.2f: %v\n", taxRate, err)
-			continue
+		go prices.NewTaxIncludedPriceJob(fm, taxRate).Calculate(doneChans[index], errChans[index])
+	}
+
+	for index, x := range taxRates {
+		select {
+		case err := <-errChans[index]:
+			if err != nil {
+				fmt.Printf("Error processing tax rate %.2f: %v\n", x, err)
+			}
+		case <-doneChans[index]:
+			fmt.Printf("Successfully processed tax rate %.2f\n", x)
 		}
+	}
+
+	for _, doneChan := range doneChans {
+		<-doneChan
 	}
 }

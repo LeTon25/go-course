@@ -14,12 +14,13 @@ type TaxIncludedPriceJob struct {
 	IOManager         iomanager.IOManager `json:"-"`
 }
 
-func (job *TaxIncludedPriceJob) Calculate() error {
+func (job *TaxIncludedPriceJob) Calculate(doneChan chan bool, errChan chan error) {
 	err := job.LoadData()
 
 	if err != nil {
 		fmt.Println("Error loading data:", err)
-		return err
+		errChan <- err
+		return
 	}
 	result := make(map[string]string)
 	for _, price := range job.Prices {
@@ -28,7 +29,9 @@ func (job *TaxIncludedPriceJob) Calculate() error {
 	}
 	job.TaxIncludedPrices = result
 
-	return job.IOManager.WriteJson(job)
+	job.IOManager.WriteJson(job)
+
+	doneChan <- true
 }
 
 func (job *TaxIncludedPriceJob) LoadData() error {
